@@ -25,42 +25,42 @@ var MediaScanner = {
     const result = [];
     const seen = new Set();
 
-    // Metadata shared by all variants of this parent post
-    const metadata = {
+    // Build a metadata object for a given variant, falling back to parent fields.
+    const buildMetadata = (variant) => ({
       parentPostId: post.id,
-      prompt: post.prompt || '',
-      originalPrompt: post.originalPrompt || '',
-      createTime: post.createTime || '',
-      mediaType: post.mediaType || '',
-      mode: post.mode || '',
-      modelName: post.modelName || '',
-      rRated: post.rRated || false,
-      resolution: post.resolution || null,
-      videoDuration: post.videoDuration || null
-    };
+      prompt: variant.prompt || post.prompt || '',
+      originalPrompt: variant.originalPrompt || post.originalPrompt || '',
+      createTime: variant.createTime || post.createTime || '',
+      mediaType: variant.mediaType || post.mediaType || '',
+      mode: variant.mode || post.mode || '',
+      modelName: variant.modelName || post.modelName || '',
+      rRated: variant.rRated ?? post.rRated ?? false,
+      resolution: variant.resolution || post.resolution || null,
+      videoDuration: variant.videoDuration || post.videoDuration || null
+    });
 
-    const add = (id, url, type) => {
+    const add = (id, url, type, variant) => {
       if (!url || !id || seen.has(id)) return;
       seen.add(id);
-      result.push({ id, url, type, metadata });
+      result.push({ id, url, type, metadata: buildMetadata(variant) });
     };
 
     // videos[] for video posts contains self + all alternate variants
     for (const vid of post.videos || []) {
-      add(vid.id, vid.mediaUrl, 'video');
+      add(vid.id, vid.mediaUrl, 'video', vid);
     }
     // images[] for image posts contains self + image variants
     for (const img of post.images || []) {
-      add(img.id, img.mediaUrl, 'image');
+      add(img.id, img.mediaUrl, 'image', img);
     }
     // childPosts may overlap with videos[]/images[] — deduped by seen set
     for (const child of post.childPosts || []) {
       const type = child.mediaType === 'MEDIA_POST_TYPE_VIDEO' ? 'video' : 'image';
-      add(child.id, child.mediaUrl, type);
+      add(child.id, child.mediaUrl, type, child);
     }
     // The post itself (if not already included via videos[] or images[])
     const selfType = post.mediaType === 'MEDIA_POST_TYPE_VIDEO' ? 'video' : 'image';
-    add(post.id, post.mediaUrl, selfType);
+    add(post.id, post.mediaUrl, selfType, post);
 
     return result;
   },

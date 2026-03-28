@@ -108,8 +108,9 @@ async function handleSaveFlow(type) {
     console.log(`[Content.handleSaveFlow] Sending ${analyzedMedia.length} items to download`);
 
     // Send work to background script
-    window.Api.startDownloads(analyzedMedia);
-    window.ProgressModal.complete(`${analyzedMedia.length} files queued for download.`);
+    window.Api.startDownloads(analyzedMedia, { metadataOnly: type === 'saveMetadata' });
+    const modeLabel = type === 'saveMetadata' ? 'metadata' : `${analyzedMedia.length} media file${analyzedMedia.length !== 1 ? 's' : ''}`;
+    window.ProgressModal.complete(`Queued ${modeLabel} for download.`);
 
   } catch (error) {
     if (error.message === 'Operation cancelled by user') {

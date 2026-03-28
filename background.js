@@ -26,14 +26,14 @@ chrome.storage.local.get(['downloadQueue'], (result) => {
  */
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'startDownloads') {
-    handleDownloads(request.media)
+    handleDownloads(request.media, request.metadataOnly)
       .then(() => { try { sendResponse({ success: true }); } catch (e) { } })
       .catch(error => { try { sendResponse({ success: false, error: error.message }); } catch (e) { } });
     return true;
   }
 });
 
-async function handleDownloads(media) {
+async function handleDownloads(media, metadataOnly = false) {
   console.log(`[BG.handleDownloads] Called with ${media ? media.length : 'null'} items`);
   if (!Array.isArray(media) || media.length === 0) throw new Error('No media provided');
 
@@ -71,7 +71,12 @@ async function handleDownloads(media) {
       sidecarMap.get(meta.parentPostId).variants.push({
         id: item.filename.replace(/\.(mp4|jpg|png|webp)$/, ''),
         url: item.url,
-        type: item.type
+        type: item.type,
+        prompt: meta.prompt || '',
+        originalPrompt: meta.originalPrompt || '',
+        modelName: meta.modelName || '',
+        resolution: meta.resolution || null,
+        videoDuration: meta.videoDuration || null
       });
     }
   }
@@ -82,7 +87,7 @@ async function handleDownloads(media) {
     sidecarItems.push({ url: dataUrl, filename: `${parentId}_info.json`, type: 'meta' });
     console.log(`[BG.handleDownloads] Sidecar for ${parentId}: ${sidecar.variants.length} variant(s), prompt="${sidecar.prompt.slice(0, 60)}"`);
   }
-  const allItems = [...media, ...sidecarItems];
+  const allItems = metadataOnly ? [...sidecarItems] : [...media, ...sidecarItems];
 
   const videoCount = allItems.filter(item => item.filename && item.filename.toLowerCase().endsWith('.mp4')).length;
   const imageCount = allItems.filter(item => item.filename && /\.(jpg|jpeg|png|webp)$/i.test(item.filename)).length;

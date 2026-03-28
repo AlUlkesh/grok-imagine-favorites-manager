@@ -47,13 +47,13 @@ var Api = {
   /**
    * Send collected media list to background script to start downloads
    */
-  startDownloads(mediaList) {
+  startDownloads(mediaList, options = {}) {
     if (!mediaList || mediaList.length === 0) {
       console.warn('[Api.startDownloads] Called with empty/null list — aborting');
       return;
     }
     console.log(`[Api.startDownloads] Sending ${mediaList.length} items to background for download`);
-    chrome.runtime.sendMessage({ action: 'startDownloads', media: mediaList });
+    chrome.runtime.sendMessage({ action: 'startDownloads', media: mediaList, metadataOnly: !!options.metadataOnly });
   }
 };
 

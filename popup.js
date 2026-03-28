@@ -18,6 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('saveImages').addEventListener('click', () => sendAction('saveImages'));
   document.getElementById('saveVideos').addEventListener('click', () => sendAction('saveVideos'));
   document.getElementById('saveBoth').addEventListener('click', () => sendAction('saveBoth'));
+  document.getElementById('saveMetadata').addEventListener('click', () => sendAction('saveMetadata'));
   // Utility actions
   document.getElementById('viewDownloads').addEventListener('click', openDownloadsPage);
   document.getElementById('downloadSettings').addEventListener('click', openDownloadSettings);
@@ -33,7 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Debug logging toggle
   const debugCheckbox = document.getElementById('debugLogging');
   chrome.storage.local.get(['debugLogging'], (result) => {
-    debugCheckbox.checked = result.debugLogging !== false; // default: true
+    debugCheckbox.checked = result.debugLogging === true; // default: false
   });
   debugCheckbox.addEventListener('change', () => {
     const enabled = debugCheckbox.checked;
@@ -64,7 +65,7 @@ function checkIfOnFavoritesPage() {
     if (!isFavoritesPage) {
       // Disable all action buttons
       const actionButtons = [
-        'saveImages', 'saveVideos', 'saveBoth'
+        'saveImages', 'saveVideos', 'saveBoth', 'saveMetadata'
       ];
 
       actionButtons.forEach(buttonId => {

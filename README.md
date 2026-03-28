@@ -12,7 +12,8 @@ This fork's improvements to the original version:
 - Improved speed
 - Gets all photo and video variations
 - Optional detailed logging
-- Collects metadata and saves it as JSON
+- Collects metadata and saves it as JSON per variant
+- Download metadata only (without media files)
 
 ## ⚠️ IMPORTANT DISCLAIMER — READ BEFORE USE ⚠️
 
@@ -37,8 +38,9 @@ This fork's improvements to the original version:
 
 - Fetches all favorites directly via the Grok REST API (no DOM scraping required)
 - Downloads all images and/or videos in one click
+- Downloads metadata only (JSON sidecar files, no media)
 - Each download batch is saved to a timestamped subfolder (`grok-imagine/YYYY_MM_DD/HH_MM/`)
-- A JSON sidecar file is saved alongside each batch with prompt, model, and metadata
+- Per-variant JSON sidecar files saved with prompt, model, and metadata for each individual image or video
 - On-screen progress modal with live updates and cancel support
 - Downloads rate-limited to ~3 per second
 
@@ -49,7 +51,7 @@ This fork's improvements to the original version:
 Clone the repository:
 
 ```bash
-git clone https://github.com/AlUlkesh/grok-imagine-favorites-manager
+git clone https://github.com/AlUlkesh/imagine-favorites-manager
 ```
 
 ### Step 2: Load into Chrome
@@ -57,7 +59,7 @@ git clone https://github.com/AlUlkesh/grok-imagine-favorites-manager
 1. Open Chrome and navigate to `chrome://extensions/`
 2. Enable **Developer mode** (toggle in the top-right corner)
 3. Click **Load unpacked**
-4. Select the `grok-imagine-favorites-manager` folder
+4. Select the `imagine-favorites-manager` folder
 5. The extension will appear in your extensions list
 
 ### Step 3: Pin the extension (recommended)
@@ -78,6 +80,7 @@ Click the puzzle-piece icon in Chrome's toolbar, find the extension, and click t
 | **Download All Media** | Downloads all images and videos |
 | **Download Images Only** | Downloads only images |
 | **Download Videos Only** | Downloads only videos |
+| **Download Metadata Only** | Saves `_info.json` sidecar files without downloading any media |
 | **Open Downloads Folder** | Opens `chrome://downloads` |
 | **Open Download Settings** | Opens Chrome download settings |
 | **Cancel Current Operation** | Stops any in-progress download |
@@ -100,10 +103,10 @@ grok-imagine/
 ```
 
 Each parent post gets a `_info.json` sidecar file containing:
-- Prompt and original prompt
+- Prompt and original prompt (per variant, with fallback to parent)
 - Model name, mode, media type
 - Create time, resolution, video duration
-- List of all variant IDs and URLs
+- List of all variant IDs, URLs, and their individual prompts/metadata
 
 ## File Structure
 
