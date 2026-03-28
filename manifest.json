@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Grok Imagine Favorites Manager",
-  "version": "1.1",
+  "version": "2.0",
   "description": "Download and manage favorited Grok Imagine media",
   "permissions": [
     "activeTab",
@@ -25,7 +25,6 @@
         "js/constants.js",
         "js/utils.js",
         "js/ui.js",
-        "js/classifier.js",
         "js/api.js",
         "js/scanner.js",
         "content.js"

@@ -1,16 +1,25 @@
 /**
  * Grok Imagine Favorites Manager - Background Service Worker
- * Handles download operations and Deep Analysis via Network Interception (God Mode)
  */
+
+// Global error handler
+self.addEventListener('unhandledrejection', event => {
+  console.warn('[Background] Unhandled rejection:', event.reason);
+});
 
 // Constants
 const DOWNLOAD_CONFIG = {
-  RATE_LIMIT_MS: 1000,
+  RATE_LIMIT_MS: 300,
   FOLDER: 'grok-imagine'
 };
 
-// Global map to track analysis requests
-const activeAnalysis = new Map();
+// Resume download queue on SW restart
+chrome.storage.local.get(['downloadQueue'], (result) => {
+  if (result.downloadQueue && result.downloadQueue.length > 0) {
+    console.log(`[Background] Resuming ${result.downloadQueue.length} queued downloads after SW restart`);
+    processNextDownload();
+  }
+});
 
 /**
  * Handles messages from content script
@@ -18,320 +27,121 @@ const activeAnalysis = new Map();
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'startDownloads') {
     handleDownloads(request.media)
-      .then(() => sendResponse({ success: true }))
-      .catch(error => {
-        sendResponse({ success: false, error: error.message });
-      });
-    return true;
-  }
-
-// proxyLogInternal listener removed
-
-  if (request.action === 'analyzePost') {
-    analyzePostInTab(request.postId, request.url)
-      .then(result => sendResponse({ success: true, data: result }))
-      .catch(error => {
-        console.error('Analysis error:', error);
-        sendResponse({ success: false, error: error.message });
-      });
+      .then(() => { try { sendResponse({ success: true }); } catch (e) { } })
+      .catch(error => { try { sendResponse({ success: false, error: error.message }); } catch (e) { } });
     return true;
   }
 });
 
-/**
- * Opens a background tab, injects network sniffer, interacts, captures URLs
- */
-async function analyzePostInTab(postId, postUrl) {
-  let tabId = null;
-  const collectedMedia = new Set(); // Use Set for uniqueness
-
-  try {
-    const targetUrl = postUrl || `https://grok.com/imagine/post/${postId}`;
-
-    const tab = await chrome.tabs.create({ url: targetUrl, active: false });
-    tabId = tab.id;
-
-    // Wait for load
-    await new Promise(resolve => {
-        const listener = (tid, changeInfo) => {
-            if (tid === tabId && changeInfo.status === 'complete') {
-                chrome.tabs.onUpdated.removeListener(listener);
-                setTimeout(resolve, 500); 
-            }
-        };
-        chrome.tabs.onUpdated.addListener(listener);
-        setTimeout(() => { chrome.tabs.onUpdated.removeListener(listener); resolve(); }, 8000);
-    });
-
-    // --- INJECT SNIFFER (MAIN WORLD) ---
-    await chrome.scripting.executeScript({
-        target: { tabId },
-        func: networkSniffer,
-        world: 'MAIN'
-    });
-    await new Promise(r => setTimeout(r, 200));
-
-    // --- STEP 1: COLLECT VIDEO ASSETS ---
-    const vResults = await chrome.scripting.executeScript({
-      target: { tabId },
-      func: scrapeAndIntercept,
-      args: ['video']
-    });
-    if (vResults && vResults[0] && vResults[0].result) {
-        vResults[0].result.forEach(u => collectedMedia.add(u));
-    }
-
-    // --- STEP 2: SWITCH TO IMAGE/VARIATIONS TAB ---
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      func: switchTab
-    });
-    await new Promise(r => setTimeout(r, 500));
-
-    // --- STEP 3: COLLECT IMAGE ASSETS (AND ANY NEW TRAFFIC) ---
-    const iResults = await chrome.scripting.executeScript({
-        target: { tabId },
-        func: scrapeAndIntercept,
-        args: ['image']
-    });
-    if (iResults && iResults[0] && iResults[0].result) {
-        iResults[0].result.forEach(u => collectedMedia.add(u));
-    }
-    
-    // Cleanup
-    chrome.tabs.remove(tabId);
-    
-    // Map URLs to formatted objects
-    return Array.from(collectedMedia)
-        .filter(url => url && url.length > 5)
-        .map(url => {
-            const id = extractPostIdFromUrl(url) || postId;
-            const type = url.includes('.mp4') ? 'video' : 'image';
-            return { url, id, type };
-        });
-
-  } catch (e) {
-    if (tabId) chrome.tabs.remove(tabId);
-    throw e;
-  }
-}
-
-// Utility for background
-function extractPostIdFromUrl(url) {
-    if (!url) return null;
-    const pathMatch = url.match(/\/(?:generated|post|status|imagine\/post)\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
-    if (pathMatch && pathMatch[1]) return pathMatch[1].toLowerCase();
-
-    const allMatches = url.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/ig);
-    if (allMatches && allMatches.length > 0) {
-      return allMatches[allMatches.length - 1].toLowerCase();
-    }
-    return null;
-}
-
-/**
- * SNIFFER - Runs in MAIN world, overrides fetch/XHR to leak URLs to DOM
- */
-function networkSniffer() {
-    // Hidden data exchange element
-    let relay = document.getElementById('grok-sniffer-relay');
-    if (!relay) {
-        relay = document.createElement('div');
-        relay.id = 'grok-sniffer-relay';
-        relay.style.display = 'none';
-        document.body.appendChild(relay);
-    }
-
-    const pushUrl = (url) => {
-        if (!url) return;
-        if (typeof url !== 'string') {
-            if (url instanceof URL) url = url.href;
-            else if (url instanceof Request) url = url.url;
-        }
-        
-        // Check for interesting extensions
-        if (url.includes('.mp4') || url.includes('.jpg') || url.includes('.png') || url.includes('.webp') || url.includes('blob:')) {
-
-            let current = [];
-            try { current = JSON.parse(relay.dataset.collectedUrls || '[]'); } catch(e){}
-            if (!current.includes(url)) {
-                current.push(url);
-                relay.dataset.collectedUrls = JSON.stringify(current);
-                relay.setAttribute('data-timestamp', Date.now());
-            }
-        }
-    };
-
-    // Hook fetch
-    const originalFetch = window.fetch;
-    window.fetch = async (...args) => {
-        const [resource, config] = args;
-        pushUrl(resource);
-        return originalFetch(...args);
-    };
-
-    // Hook XHR
-    const originalOpen = XMLHttpRequest.prototype.open;
-    XMLHttpRequest.prototype.open = function(method, url, ...rest) {
-        pushUrl(url);
-        return originalOpen.apply(this, [method, url, ...rest]);
-    };
-    
-
-}
-
-/**
- * SCRAPER - Runs in ISOLATED world, clicks button and watches relay
- */
-async function scrapeAndIntercept(mode) {
-    const relay = document.getElementById('grok-sniffer-relay');
-
-    if (!relay) {
-        return [];
-    }
-
-
-    // Reset collected urls
-    relay.dataset.collectedUrls = '[]';
-    
-    // Helper to find button
-    const findBtn = () => {
-        const btns = Array.from(document.querySelectorAll('button, a, [role="button"]'));
-        return btns.find(b => {
-            const label = (b.ariaLabel || "").toLowerCase();
-            const text = (b.innerText || "").toLowerCase();
-            const title = (b.title || "").toLowerCase();
-            const isDownload = 
-                label.includes('download') || text.includes('download') || title.includes('download') ||
-                label.includes('ダウンロード') || text.includes('ダウンロード') || title.includes('ダウンロード') ||
-                label.includes('保存') || text.includes('保存') || title.includes('保存');
-            return isDownload && !text.includes('upscale') && !label.includes('upscale');
-        });
-    };
-
-    // 1. Wait for Button (Hydration/Render check) - Max 1.5s
-    let dlBtn = findBtn();
-    if (!dlBtn) {
-        for (let i = 0; i < 15; i++) { // 100ms * 15 = 1.5s
-            await new Promise(r => setTimeout(r, 100));
-            dlBtn = findBtn();
-            if (dlBtn) break;
-        }
-    }
-    
-    let buttonFound = false;
-    if (dlBtn) {
-        dlBtn.click();
-        buttonFound = true;
-    }
-
-    // 2. Wait for Network Idle (Dynamic Exit)
-    // Use Time-based loop to handle background tab throttling (setTimeout becomes 1000ms in inactive tabs)
-    const startTime = Date.now();
-    let firstDiscoveryTime = null;
-    let idleStartTime = null;
-    let lastCount = 0;
-    
-    // Max wait 4 seconds (safe wall-clock time)
-    while (Date.now() - startTime < 4000) {
-        // Wait 100ms (or 1000ms if throttled)
-        await new Promise(r => setTimeout(r, 100));
-        
-        // Check current results
-        let currentCount = 0;
-        try {
-            const current = JSON.parse(relay.dataset.collectedUrls || '[]');
-            currentCount = current.length;
-        } catch(e) {}
-
-        const elapsed = Date.now() - startTime;
-
-        // Log occasionally (every ~500ms approx) - REMOVED
-
-
-        // If we have items...
-        if (currentCount > 0) {
-            // First time detection
-            if (!firstDiscoveryTime) {
-                firstDiscoveryTime = Date.now();
-            }
-
-            // And count hasn't changed since last tick
-            if (currentCount === lastCount) {
-                if (!idleStartTime) idleStartTime = Date.now();
-                
-                const idleDuration = Date.now() - idleStartTime;
-                // If quiet for 600ms, exit
-                if (idleDuration >= 600) {
-                    break;
-                }
-            } else {
-                // Count changed, reset idle timer
-                idleStartTime = null;
-            }
-        } else {
-            // 0 items
-            idleStartTime = null; 
-            
-            // If button was found and 2s passed, timeout early
-            if (buttonFound && elapsed >= 2000) {
-                 break;
-            }
-            // If button NOT found, wait shorter (1.5s)
-            if (!buttonFound && elapsed >= 1500) {
-                 break;
-            }
-        }
-        lastCount = currentCount;
-    }
-
-    let results = [];
-    try {
-        results = JSON.parse(relay.dataset.collectedUrls || '[]');
-    } catch(e) {}
-    
-    return results;
-}
-
-function switchTab() {
-    const candidates = Array.from(document.querySelectorAll('[role="tab"], button'));
-    for (const el of candidates) {
-        const txt = (el.innerText || "").toLowerCase();
-        const label = (el.ariaLabel || "").toLowerCase();
-        const isImage = 
-            txt.includes('image') || label.includes('image') || 
-            txt.includes('version') || label.includes('version') ||
-            txt.includes('variations') || label.includes('variations') ||
-            txt.includes('画像') || label.includes('画像') ||
-            txt.includes('バリエーション') || label.includes('バリエーション');
-
-        if (isImage) {
-            el.click();
-            return;
-        }
-    }
-}
-
-/**
- * Standard Download Logic
- */
 async function handleDownloads(media) {
+  console.log(`[BG.handleDownloads] Called with ${media ? media.length : 'null'} items`);
   if (!Array.isArray(media) || media.length === 0) throw new Error('No media provided');
-  await chrome.storage.local.set({ totalDownloads: media.length, downloadProgress: {} });
-  media.forEach((item, index) => {
-    setTimeout(() => { 
-        downloadFile(item); 
-    }, index * DOWNLOAD_CONFIG.RATE_LIMIT_MS);
+
+  media.forEach((item, i) => {
+    console.log(`[BG.handleDownloads]   [${i}] filename=${item.filename} type=${item.type || '?'} url=${item.url ? item.url.slice(0,80) : 'MISSING'}`);
   });
+
+  // Re-entry guard: reject if already downloading
+  const existing = await chrome.storage.local.get(['downloadQueue']);
+  if (existing.downloadQueue && existing.downloadQueue.length > 0) {
+    console.warn(`[BG.handleDownloads] BLOCKED — download already in progress (${existing.downloadQueue.length} items in queue)`);
+    throw new Error('Download already in progress');
+  }
+
+  // Build JSON sidecar files — one per parent post — from metadata attached to media items
+  const sidecarMap = new Map();
+  for (const item of media) {
+    const meta = item.metadata;
+    if (meta && meta.parentPostId) {
+      if (!sidecarMap.has(meta.parentPostId)) {
+        sidecarMap.set(meta.parentPostId, {
+          id: meta.parentPostId,
+          prompt: meta.prompt || '',
+          originalPrompt: meta.originalPrompt || '',
+          createTime: meta.createTime || '',
+          mediaType: meta.mediaType || '',
+          mode: meta.mode || '',
+          modelName: meta.modelName || '',
+          rRated: meta.rRated || false,
+          resolution: meta.resolution || null,
+          videoDuration: meta.videoDuration || null,
+          variants: []
+        });
+      }
+      sidecarMap.get(meta.parentPostId).variants.push({
+        id: item.filename.replace(/\.(mp4|jpg|png|webp)$/, ''),
+        url: item.url,
+        type: item.type
+      });
+    }
+  }
+  const sidecarItems = [];
+  for (const [parentId, sidecar] of sidecarMap) {
+    const jsonStr = JSON.stringify(sidecar, null, 2);
+    const dataUrl = 'data:application/json;charset=utf-8,' + encodeURIComponent(jsonStr);
+    sidecarItems.push({ url: dataUrl, filename: `${parentId}_info.json`, type: 'meta' });
+    console.log(`[BG.handleDownloads] Sidecar for ${parentId}: ${sidecar.variants.length} variant(s), prompt="${sidecar.prompt.slice(0, 60)}"`);
+  }
+  const allItems = [...media, ...sidecarItems];
+
+  const videoCount = allItems.filter(item => item.filename && item.filename.toLowerCase().endsWith('.mp4')).length;
+  const imageCount = allItems.filter(item => item.filename && /\.(jpg|jpeg|png|webp)$/i.test(item.filename)).length;
+
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const dd = String(now.getDate()).padStart(2, '0');
+  const hh = String(now.getHours()).padStart(2, '0');
+  const min = String(now.getMinutes()).padStart(2, '0');
+  const datePath = `${yyyy}_${mm}_${dd}/${hh}_${min}`;
+
+  await chrome.storage.local.set({
+    totalDownloads: allItems.length,
+    downloadProgress: {},
+    downloadCounts: { video: videoCount, image: imageCount },
+    downloadQueue: allItems,
+    downloadDatePath: datePath
+  });
+
+  processNextDownload();
 }
 
-function downloadFile(item) {
-  if (!item.url || !item.filename) return;
-  chrome.downloads.download({ 
-    url: item.url, 
-    filename: `${DOWNLOAD_CONFIG.FOLDER}/${item.filename}`,
-    saveAs: false
-  });
+async function processNextDownload() {
+  const data = await chrome.storage.local.get(['downloadQueue', 'downloadDatePath']);
+  const queue = data.downloadQueue || [];
+
+  if (queue.length === 0) {
+    console.log('[BG.processNextDownload] Queue empty — done.');
+    return;
+  }
+
+  // Pop first item
+  const item = queue.shift();
+  await chrome.storage.local.set({ downloadQueue: queue });
+
+  if (item.url && item.filename) {
+    const datePath = data.downloadDatePath || 'unknown';
+    const destPath = `${DOWNLOAD_CONFIG.FOLDER}/${datePath}/${item.filename}`;
+    console.log(`[BG.processNextDownload] Downloading: ${destPath} (${queue.length} remaining)`);
+    chrome.downloads.download({
+      url: item.url,
+      filename: destPath,
+      saveAs: false
+    }, (downloadId) => {
+      if (chrome.runtime.lastError) {
+        console.error(`[BG.processNextDownload] download() error for ${item.filename}:`, chrome.runtime.lastError.message);
+      } else {
+        console.log(`[BG.processNextDownload] download() started id=${downloadId} for ${item.filename}`);
+      }
+    });
+  } else {
+    console.warn(`[BG.processNextDownload] SKIP — missing url or filename:`, item);
+  }
+
+  // Schedule next download after rate limit (non-blocking)
+  if (queue.length > 0) {
+    setTimeout(processNextDownload, DOWNLOAD_CONFIG.RATE_LIMIT_MS);
+  }
 }
 
 chrome.downloads.onChanged.addListener((delta) => {

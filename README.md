@@ -1,47 +1,33 @@
-# Grok Imagine Favorites Manager
-
-A modern Chrome extension to download and manage your favorited Grok Imagine images and videos.
-
-## ⚠️ ARCHIVED: NO LONGER MAINTAINED
-
-> [!CAUTION]
-> **Project Status: Archived (February 2026)**
-> 
-> Thanks to recent fixes from **[masamunet](https://github.com/masamunet)**, most features are currently functional. However, I no longer use Grok frequently and do not have the time required to maintain this extension against future platform changes. 
->
-> The repository is now in **read-only** mode.
-
-### 🛠 What this means:
-* **Read-Only:** No further issues or Pull Requests will be addressed.
-* **Functional (for now):** The current code reflects the latest working fixes for the February 2026 Grok UI.
-* **Open Source:** The code remains available for educational purposes or forking.
-
-**Want to keep it alive?** You are more than welcome to **fork** this repository if you wish to maintain it or adapt it to future website layout changes.
+A Chrome extension to bulk-download your favorited Grok Imagine images and videos.
 
 ---
 
-A modern Chrome extension to download and manage your favorited Grok Imagine images and videos.
+## Fork
 
-<img width="337" height="597" alt="Screenshot 2025-11-19 at 11 57 57 AM" src="https://github.com/user-attachments/assets/a42e7456-3100-4935-972f-6548c974049d" />
+This is a fork of https://github.com/brndnsmth/grok-imagine-favorites-manager, which was archived in February 2026.
 
-<img width="408" height="257" alt="Screenshot 2025-11-17 at 10 23 38 AM" src="https://github.com/user-attachments/assets/51ac09e1-8973-4cf3-a5e7-034677b62cdf" />
+This fork's improvements to the original version:
 
----
+- Completely reworked capturing method
+- Improved speed
+- Gets all photo and video variations
+- Optional detailed logging
+- Collects metadata and saves it as JSON
 
-## ⚠️ IMPORTANT DISCLAIMER - READ BEFORE USE ⚠️
+## ⚠️ IMPORTANT DISCLAIMER — READ BEFORE USE ⚠️
 
 **USE AT YOUR OWN RISK. THIS IS AN UNOFFICIAL, THIRD-PARTY TOOL.**
 
-- **NOT AFFILIATED** with Grok, X, or any official entities
-- **NO WARRANTY** - This extension is provided "AS IS" without any guarantees
-- **NO RESPONSIBILITY** - The developer is not responsible for:
+- **NOT AFFILIATED** with Grok, xAI, or X
+- **NO WARRANTY** — This extension is provided "AS IS" without any guarantees
+- **NO RESPONSIBILITY** — The developer is not responsible for:
   - Data loss or corruption
   - Account issues or bans
   - API changes breaking functionality
   - Any damages or issues arising from use
-- **BREAKING CHANGES EXPECTED** - Grok Imagine is constantly evolving. This extension may break at any time as the platform updates its interface, API endpoints, or policies
-- **EXPERIMENTAL SOFTWARE** - Features may be unstable or incomplete
-- **YOUR RESPONSIBILITY** - By using this extension, you acknowledge and accept all risks
+- **BREAKING CHANGES EXPECTED** — Grok Imagine is constantly evolving. This extension may break at any time as the platform updates its interface, API endpoints, or policies
+- **EXPERIMENTAL SOFTWARE** — Features may be unstable or incomplete
+- **YOUR RESPONSIBILITY** — By using this extension, you acknowledge and accept all risks
 
 **If you cannot accept these terms, do not use this extension.**
 
@@ -49,128 +35,108 @@ A modern Chrome extension to download and manage your favorited Grok Imagine ima
 
 ## Features
 
-- Download all images and/or videos from your favorites with automatic scrolling
-- Upscale standard videos to HD quality with fast parallel requests
-- Unfavorite all items at once
-- Automatic filename matching (videos use image names)
-- On-screen progress modal with live updates
-- Cancel operations at any time
-- API-based unfavoriting for reliability
+- Fetches all favorites directly via the Grok REST API (no DOM scraping required)
+- Downloads all images and/or videos in one click
+- Each download batch is saved to a timestamped subfolder (`grok-imagine/YYYY_MM_DD/HH_MM/`)
+- A JSON sidecar file is saved alongside each batch with prompt, model, and metadata
+- On-screen progress modal with live updates and cancel support
+- Downloads rate-limited to ~3 per second
 
 ## Installation
 
-### Step 1: Clone the Repository
+### Step 1: Get the extension files
 
-First, clone this repository to your local machine:
+Clone the repository:
 
 ```bash
-git clone https://github.com/brndnsmth/grok-imagine-favorites-manager.git
+git clone https://github.com/AlUlkesh/grok-imagine-favorites-manager
 ```
 
-This will create a folder called `grok-imagine-favorites-manager` containing all the extension files.
+### Step 2: Load into Chrome
 
-Alternatively, you can download the repository as a ZIP file:
-1. Go to https://github.com/brndnsmth/grok-imagine-favorites-manager
-2. Click the green "Code" button
-3. Select "Download ZIP"
-4. Extract the ZIP file to a folder on your computer
+1. Open Chrome and navigate to `chrome://extensions/`
+2. Enable **Developer mode** (toggle in the top-right corner)
+3. Click **Load unpacked**
+4. Select the `grok-imagine-favorites-manager` folder
+5. The extension will appear in your extensions list
 
-### Step 2: Load the Extension in Chrome
+### Step 3: Pin the extension (recommended)
 
-1. Open Google Chrome
-2. Navigate to `chrome://extensions/` (or go to Menu → Extensions → Manage Extensions)
-3. Enable **Developer mode** by toggling the switch in the top-right corner
-4. Click the **"Load unpacked"** button that appears
-5. Navigate to and select the `grok-imagine-favorites-manager` folder you cloned/downloaded
-6. The extension should now appear in your extensions list
-
-### Step 3: Pin the Extension (Optional but Recommended)
-
-1. Click the puzzle piece icon in Chrome's toolbar (Extensions menu)
-2. Find "Grok Imagine Favorites Manager" in the list
-3. Click the pin icon next to it
-4. The extension icon will now appear in your toolbar for easy access
+Click the puzzle-piece icon in Chrome's toolbar, find the extension, and click the pin icon.
 
 ## Usage
 
-1. Log in to your account
-2. Navigate to https://grok.com/imagine/favorites
-3. Click the extension icon
-4. Choose your desired action
+1. Log in to your Grok account
+2. Navigate to `https://grok.com/imagine/saved`
+3. Click the extension icon in the toolbar
+4. Choose a download action
 
-The extension will automatically scroll and load all favorites before processing.
+### Actions
 
-### Available Actions
+| Button | Description |
+|---|---|
+| **Download All Media** | Downloads all images and videos |
+| **Download Images Only** | Downloads only images |
+| **Download Videos Only** | Downloads only videos |
+| **Open Downloads Folder** | Opens `chrome://downloads` |
+| **Open Download Settings** | Opens Chrome download settings |
+| **Cancel Current Operation** | Stops any in-progress download |
 
-**Download:**
-- **Download All Media** - Downloads both images and videos (videos named to match images)
-- **Download Images Only** - Downloads only images
-- **Download Videos Only** - Downloads only videos (named to match images)
+### Debug Logging
 
-*Note: Video downloads only capture the most recently generated video. If you've regenerated a video multiple times, only the latest version will be downloaded.*
+Check **Debug Logging** in the popup to enable verbose output in DevTools Console (`F12`). Disabled by default.
 
-**Video Tools:**
-- **Upscale Videos to HD** - Requests upscaling for all standard videos to HD quality (requests are staggered and complete in background)
+## Downloads
 
-*Note: Upscaling only applies to the most recently generated video. Previous video versions cannot be upscaled through this tool.*
+Files are saved to your default Chrome downloads folder under:
 
-<img width="402" height="299" alt="Screenshot 2025-11-18 at 4 12 40 PM" src="https://github.com/user-attachments/assets/d86954d1-8cc9-4f37-a7d1-63e171937144" />
+```
+grok-imagine/
+  YYYY_MM_DD/
+    HH_MM/
+      <mediaId>.jpg
+      <mediaId>.mp4
+      <parentPostId>_info.json   <- prompt, model, metadata
+```
 
-<img width="406" height="302" alt="Screenshot 2025-11-18 at 4 12 48 PM" src="https://github.com/user-attachments/assets/73f260ed-7795-40f0-a1e9-c1db95dcdf1d" />
+Each parent post gets a `_info.json` sidecar file containing:
+- Prompt and original prompt
+- Model name, mode, media type
+- Create time, resolution, video duration
+- List of all variant IDs and URLs
 
-**Manage:**
-- **Unfavorite All** - Removes all favorites from your collection
+## File Structure
 
-**Utilities:**
-- **Cancel Current Operation** - Stops any running download or unfavorite operation
-- **Open Downloads Folder** - Opens Chrome downloads page
-- **Open Download Settings** - Opens Chrome download settings
+| File | Purpose |
+|---|---|
+| `manifest.json` | Extension configuration (MV3) |
+| `popup.html` / `popup.js` | Extension popup UI and logic |
+| `content.js` | Orchestrates scan → prepare → download flow |
+| `background.js` | Download queue management, rate limiting, JSON sidecars |
+| `js/constants.js` | Shared selector and config constants |
+| `js/utils.js` | Logger, UUID extraction, DOM element helpers |
+| `js/api.js` | REST API calls (`/rest/media/post/list`) |
+| `js/scanner.js` | Post fetching, media extraction, download preparation |
+| `js/ui.js` | Progress modal |
 
-## Files
+## Technical Notes
 
-- `manifest.json` - Extension configuration
-- `popup.html` - Extension popup UI
-- `popup.js` - Popup logic and event handlers
-- `content.js` - Page interaction, media extraction, and unfavorite operations
-- `background.js` - Download management and rate limiting
-
-## Downloads Location
-
-Files are saved to your default Chrome downloads folder in a `grok-imagine/` subdirectory.
-
-Videos are automatically named to match their corresponding image files (using the image UUID/filename).
-
-## Technical Details & Credits
-
-### Recent Improvements
-
-Special thanks to **[masamunet](https://github.com/masamunet)** for significant core contributions:
-
-* **"Universal Sweep" Logic:** Overhauled the unfavorite system to fix issues where video items were skipped. The logic now uses a two-pronged approach: a physical click on the "Unsave" button followed by a sequential API backup for 100% reliability.
-* **Deep ID Extraction:** Implemented `findAllUUIDsInElement` to scan all attributes for Post IDs. This ensures the original Post ID is captured even when the video UUID differs (common with regenerated videos).
-* **Sequential Processing:** Shifted from "batch" processing to an `await` flow to prevent race conditions and ensure every item is processed before moving to the next.
-* **Reliable High-Quality Downloads:** Fixed logic to ensure "Images Only" and "Videos Only" filters work strictly as intended without mixed content, while always grabbing the highest resolution available.
-
-### System details
-
-- Downloads are rate-limited to approximately 3 per second to avoid browser issues
-- Unfavorite requests are delayed by 150ms between calls
-- Upscale requests are staggered with 300ms delays and run in parallel
-- Progress tracking displays in an on-screen modal with visual progress bar
-- Content script automatically scrolls to load all lazy-loaded content
+- The extension calls `POST https://grok.com/rest/media/post/list` with the authenticated session cookie — the same endpoint the Grok frontend uses internally
+- All media variants (images and videos) are returned directly by the API; no tab-opening or DOM walking is needed
+- Downloads use `chrome.downloads.download()` — native browser downloads with full cookie and header support
+- The DOM scroll fallback in `scanner.js` is retained for cases where the API returns 0 results
 
 ## Important Notes
 
-- **⚠️ Grok Imagine is constantly changing** - This extension may break with platform updates
-- The extension works on https://grok.com/imagine/favorites
-- No manual scrolling needed - the extension handles it automatically
-- Video filenames automatically match their corresponding image names for easy pairing
-- **Only the most recently generated video is processed** - Earlier video versions are not accessible
-- Keep the tab open while operations run to ensure completion
-- Progress is shown in an on-screen modal with cancellation option
-- Unfavorite operations work by calling `/rest/media/post/unlike` with the post id
-- Upscale requests are sent to `/rest/media/video/upscale` and complete in the background
+- Keep the tab open while downloads are running
+- The extension only works on `https://grok.com/imagine/*` pages
+- If the API changes or returns errors, reload the page and retry
+- Check the repository for updates if features stop working
 
 ## Support
 
-This extension is designed specifically for Grok Imagine favorites management. **The Grok platform is actively developed and frequently changes.** If features stop working, the extension will need updates to match new DOM structures, API endpoints, or workflows. Check the repository for updates or open an issue if you encounter problems.
+Open an issue on GitHub if you encounter problems. The Grok platform changes frequently; check for updates before reporting bugs.
+
+## Credits
+
+Credits and thanks to the original author https://github.com/brndnsmth and everyone who contributed, esp. https://github.com/masamunet for valuable additions.
